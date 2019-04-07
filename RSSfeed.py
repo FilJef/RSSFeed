@@ -10,9 +10,8 @@ import requests
 import numpy
 import time
 import sqlite3
-#import Generic_parser
-#import WebTest
-#import pyOpenSsl
+import Generic_parser
+import pymysql
 
 class formattedArticle(object):
 
@@ -23,7 +22,6 @@ class formattedArticle(object):
         self.link = l1
         self.sentiment = 0
         self.sia = SentimentIntensityAnalyzer()
-        # self.sia.lexicon.update("/home/Phil/Downloads/LoughranMcDonald_MasterDictionary_2016.csv")
 
     def save_to_sql(self):
         # format the date
@@ -38,22 +36,48 @@ class formattedArticle(object):
         self.article = self.article.replace('\n', '')
         self.article = self.article.replace('\r\n', '')
 
+        #Adds an escape to the ' character so sql doesnt break
+        self.headline = self.headline.replace("'", "''")
+        self.article = self.article.replace("'", "''")
+
         # This line removes embedded share buttons for facebook, twitter ect
         self.article = self.article.replace('.bwalignc {text-align: center !important;} .bwalignl {text-align: left'
                                              ' !important;} .bwcellpmargin {margin-bottom: 0px !important; margin-top'
                                              ': 0px !important;} .bwpadl0 {padding-left: 0.0px !important;} '
                                              '.bwtablemarginb {margin-bottom: 10.0px !important;} .bwvertalignt'
                                              ' {vertical-align: top !important;} ;} ', '')
+
         # connect to the database
         connection = sqlite3.connect("/home/Phil/store/News2")
+        gcloudcon = pymysql.connect(host='127.0.0.1',
+                                    database='store',
+                                    user='SQLUser',
+                                    password='3dWHUFePz9dHkFn')
+        cur = gcloudcon.cursor()
         cursor = connection.cursor()
-        # try to add the feed into the database
+
+        #Sql query
+        query = "INSERT INTO articles VALUES ('{0}', '{1}', '{2}', '{3}', '{4}');".format(self.date, self.headline,
+                                                                                          self.article, self.link,
+                                                                                          self.sentiment)
+
+        # try to add the feed into the local database
         try:
-            cursor.execute("INSERT INTO data VALUES (?,?,?,?,?)", [self.date, self.headline, self.article,  self.link, self.sentiment])
+            cursor.execute(query)
             print("Added article to DB")
         except sqlite3.IntegrityError:
             print("error, already in db")
+
+        # try to add the feed into the cloud database
+        try:
+            cur.execute(query)
+            print("Added article to Cloud DB")
+        except pymysql.IntegrityError:
+            print("Error, already in db")
+
         # close the connection
+        gcloudcon.commit()
+        gcloudcon.close()
         connection.commit()
         connection.close()
 
@@ -72,13 +96,22 @@ def getarticle(entry):
     articleforsaving = formattedArticle(headline, article, date, url)
     articleforsaving.save_to_sql()
 
-d = feedparser.parse('http://finance.yahoo.com/rss/headline?s=dji,mmm,axp,aapl,ba,cat,cvx,csco,ko,dis,dwdp,xom,gs,hd'
+
+#loop
+x = 1
+while x is 1:
+    try:
+        d = feedparser.parse('http://finance.yahoo.com/rss/headline?s=dji,mmm,axp,aapl,ba,cat,cvx,csco,ko,dis,dwdp,xom,gs,hd'
                      ',ibm,intc,jnj,jpm,mcd,mrk,msft,nke,pfe,pg,trv,utx,unh,vzv,wmt,wba')
+        print(d['feed']['description'])
 
-print(d['feed']['description'])
+        if len(d) > 0:
+            for i in range(len(d)):
+                getarticle(d.entries[i])
+        else:
+            print("")
+    except:
+        print("")
 
-if len(d) >= 2:
-    for i in range(len(d)):
-        getarticle(d.entries[i])
-else:
-    getarticle(d.entries[0])
+    time.sleep(300)
+    print("And again")
