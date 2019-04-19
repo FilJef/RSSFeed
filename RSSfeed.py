@@ -10,7 +10,6 @@ import requests
 import numpy
 import time
 import sqlite3
-import Generic_parser
 import pymysql
 
 class formattedArticle(object):
@@ -60,7 +59,7 @@ class formattedArticle(object):
         query = "INSERT INTO articles VALUES ('{0}', '{1}', '{2}', '{3}', '{4}');".format(self.date, self.headline,
                                                                                           self.article, self.link,
                                                                                           self.sentiment)
-
+        
         # try to add the feed into the local database
         try:
             cursor.execute(query)
@@ -74,6 +73,8 @@ class formattedArticle(object):
             print("Added article to Cloud DB")
         except pymysql.IntegrityError:
             print("Error, already in db")
+        except pymysql.err.DataError:
+            print("Error, Article to big to add to cloud")
 
         # close the connection
         gcloudcon.commit()
@@ -101,17 +102,19 @@ def getarticle(entry):
 x = 1
 while x is 1:
     try:
-        d = feedparser.parse('http://finance.yahoo.com/rss/headline?s=dji,mmm,axp,aapl,ba,cat,cvx,csco,ko,dis,dwdp,xom,gs,hd'
-                     ',ibm,intc,jnj,jpm,mcd,mrk,msft,nke,pfe,pg,trv,utx,unh,vzv,wmt,wba')
+        d = feedparser.parse(
+            'http://finance.yahoo.com/rss/headline?s=dji,mmm,axp,aapl,ba,cat,cvx,csco,ko,dis,dwdp,xom,gs,hd'
+            ',ibm,intc,jnj,jpm,mcd,mrk,msft,nke,pfe,pg,trv,utx,unh,vzv,wmt,wba')
         print(d['feed']['description'])
 
         if len(d) > 0:
             for i in range(len(d)):
                 getarticle(d.entries[i])
         else:
-            print("")
+            print("Articles is empty")
     except:
-        print("")
+        print("Could not get feed data")
 
+    print("Sleep")
     time.sleep(300)
     print("And again")
