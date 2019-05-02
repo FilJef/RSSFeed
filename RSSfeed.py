@@ -1,4 +1,3 @@
-from nltk.corpus.reader.plaintext import PlaintextCorpusReader
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from datetime import date, datetime
 from dateutil import parser
@@ -22,7 +21,8 @@ class formattedArticle(object):
         self.sentiment = 0
         self.sia = SentimentIntensityAnalyzer()
 
-    def save_to_sql(self):
+
+    def format_article(self):
         # format the date
         self.date = self.date.replace('+0000', '')
         self.date = parser.parse(self.date)
@@ -35,19 +35,20 @@ class formattedArticle(object):
         self.article = self.article.replace('\n', '')
         self.article = self.article.replace('\r\n', '')
 
-        #Adds an escape to the ' character so sql doesnt break
+        # Adds an escape to the ' character so sql doesnt break
         self.headline = self.headline.replace("'", "''")
         self.article = self.article.replace("'", "''")
 
         # This line removes embedded share buttons for facebook, twitter ect
         self.article = self.article.replace('.bwalignc {text-align: center !important;} .bwalignl {text-align: left'
-                                             ' !important;} .bwcellpmargin {margin-bottom: 0px !important; margin-top'
-                                             ': 0px !important;} .bwpadl0 {padding-left: 0.0px !important;} '
-                                             '.bwtablemarginb {margin-bottom: 10.0px !important;} .bwvertalignt'
-                                             ' {vertical-align: top !important;} ;} ', '')
+                                            ' !important;} .bwcellpmargin {margin-bottom: 0px !important; margin-top'
+                                            ': 0px !important;} .bwpadl0 {padding-left: 0.0px !important;} '
+                                            '.bwtablemarginb {margin-bottom: 10.0px !important;} .bwvertalignt'
+                                            ' {vertical-align: top !important;} ;} ', '')
 
+    def save_to_sql(self):
         # connect to the database
-        connection = sqlite3.connect("/home/Phil/store/News2")
+        connection = sqlite3.connect("/home/Phil/store/News2")  
         gcloudcon = pymysql.connect(host='127.0.0.1',
                                     database='store',
                                     user='SQLUser',
@@ -66,6 +67,8 @@ class formattedArticle(object):
             print("Added article to DB")
         except sqlite3.IntegrityError:
             print("error, already in db")
+        except:
+            print("some other error")
 
         # try to add the feed into the cloud database
         try:
@@ -75,6 +78,8 @@ class formattedArticle(object):
             print("Error, already in db")
         except pymysql.err.DataError:
             print("Error, Article to big to add to cloud")
+        except:
+            print("Some other error")
 
         # close the connection
         gcloudcon.commit()
@@ -85,18 +90,21 @@ class formattedArticle(object):
 
 # Parses the article and saves it to the sql file
 def getarticle(entry):
-    headline = entry['title']
-    url = entry['link']
-    date = entry['published']
-    r = requests.get(url)
-    html = r.text
-    soup = BeautifulSoup(html, 'lxml')
-    links = [e.get_text() for e in soup.find_all('p')]
-    article = '\n'.join(links)
-    print(headline)
-    articleforsaving = formattedArticle(headline, article, date, url)
-    articleforsaving.save_to_sql()
-
+    try:
+        headline = entry['title']
+        url = entry['link']
+        date = entry['published']
+        r = requests.get(url)
+        html = r.text
+        soup = BeautifulSoup(html, 'lxml')
+        links = [e.get_text() for e in soup.find_all('p')]
+        article = '\n'.join(links)
+        print(headline)
+        articleforsaving = formattedArticle(headline, article, date, url)
+        articleforsaving.format_article()
+        articleforsaving.save_to_sql()
+    except:
+        print("article fail, trying next article")
 
 #loop
 x = 1
@@ -106,7 +114,6 @@ while x is 1:
             'http://finance.yahoo.com/rss/headline?s=dji,mmm,axp,aapl,ba,cat,cvx,csco,ko,dis,dwdp,xom,gs,hd'
             ',ibm,intc,jnj,jpm,mcd,mrk,msft,nke,pfe,pg,trv,utx,unh,vzv,wmt,wba')
         print(d['feed']['description'])
-
         if len(d) > 0:
             for i in range(len(d)):
                 getarticle(d.entries[i])
@@ -116,5 +123,5 @@ while x is 1:
         print("Could not get feed data")
 
     print("Sleep")
-    time.sleep(300)
+    time.sleep(600)
     print("And again")
